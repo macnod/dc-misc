@@ -20,10 +20,12 @@ RUN adduser ubuntu admin
 RUN echo "ubuntu:eagle" | chpasswd
 USER ubuntu
 ADD .screenrc /home/ubuntu/.screenrc
+RUN mkdir /home/ubuntu/.ssh
+RUN touch /home/ubuntu/.ssh/known_hosts
+ADD ai_rsa.pub /home/ubuntu/.ssh/ai_rsa.pub
+RUN cat /home/ubuntu/.ssh/ai_rsa.pub >> /home/ubuntu/.ssh/authorized_keys
 
 # Get code
-USER ubuntu
-RUN touch /home/ubuntu/.ssh/known_hosts
 RUN ssh-keyscan github.com >> /home/ubuntu/.ssh/known_hosts
 RUN git config --global user.email "macnod@gmail.com"
 RUN git config --global user.name "Donnie Cameron"
@@ -31,6 +33,7 @@ RUN git config --global push.default simple
 RUN git config --global pull.rebase true
 
 # Configure startup
+USER root
 ADD start.sh /start.sh
 
 # Container ports
