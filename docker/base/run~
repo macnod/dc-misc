@@ -1,0 +1,88 @@
+#!/usr/bin/perl
+
+# run api
+
+# This runs the docker image macnod/erosnow:api and updates
+# /etc/hosts so that the hostname 'api' points to the right
+# instance.  You can, optionally, pass a different image as a
+# parameter.
+
+use lib '../perl';
+use RunContainer qw/container_ip update_etc_hosts/;
+use Getopt::Long qw/:config bundling/;
+
+sub usage {
+<<'EOM';
+USAGE
+sudo api/run [options]
+
+IMPORTANT: Run this program from the API/docker-builds directory.
+
+EXAMPLE
+sudo api/run
+
+OPTIONS
+--image, -i image-name
+    The docker image that you want to run.  Defaults to
+    macnod/erosnow:api.
+
+--name, -n name
+    The Docker container name you want to give to the container that
+    this program creates.  Defaults to 'api'.  Your /etc/hosts file
+    will also be updated so that the name you provide here points to
+    the IP address of this container.
+
+--mysql, -m mysql-server
+    The hostname of the MySQL server that you want this container to
+    use.  Defaults to 'mysql'.  That database server must be running
+    and available before you run this program.
+
+--search, -s search-server
+    The hostname of the search server.
+
+--not-lcl
+    This flag tells the program *not* to alter /etc/hosts so that
+    lclapi.erosnow.com points to the IP address of this container.
+
+--help, -h
+    Display this help text.
+EOM
+}
+
+my $o= +{};
+GetOptions(
+    $o, 'image|i=s', 'name|n=s', 'mysql|m=s', 'search|s=s',
+    'not-lcl|n', 'help|h'
+);
+die usage() if $o->{help};
+$o->{image}||= 'macnod/erosnow:api';
+my $name= do {
+    $o->{image} =~ m|macnod/erosnow:(.+)|;
+    $o->{name} ? $o->{name} : $1 ? $1 : die "No name.\n"};
+my $mysql= $o->{mysql} || 'mysql';
+my $search= $o->{search} || 'search';
+my $mysql_ip= container_ip($mysql);
+my $search_ip= container_ip($search);
+
+die "This script must be run as root.\n" if $>;
+die "Container '$name' already exists.\n" if `docker ps -a | grep $name`;
+die "Container '$mysql' must already be running.\n" unless $mysql_ip;
+die "Container '$search' must already be running.\n" unless $search_ip;
+
+# Start instance
+my @run_options= (
+    "--add-host=mysql:$mysql_ip",
+    "--add-host=lcl.erosnow.com:127.0.0.1",
+    "--add-host=search:$search_ip",
+    "--add-host=dev_useast_01_01.erosnow.com:$search_ip",
+    "--name=$name",
+    "-h $name",
+    "-dt $o->{image}",
+    "/start.sh",
+);
+my $run_options= join(' ', @run_options);
+`docker run $run_options`;
+my $ip= update_etc_hosts($name, ($o->{'not-lcl'} ? () : 'lclapi.erosnow.com'));
+
+# All done
+print "Container '$name' is running with IP address $ip.\n";
