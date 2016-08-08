@@ -4,7 +4,7 @@
 #
 
 # Pull base image
-FROM ubuntu:15.10
+FROM ubuntu:16.04
 
 # Update system and install necessary software
 RUN apt-get update --fix-missing && apt-get dist-upgrade -yq --fix-missing
