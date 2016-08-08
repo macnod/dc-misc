@@ -1,0 +1,60 @@
+#!/usr/bin/perl
+
+# run wikipedia-affinity
+
+# This runs the docker image macnod/ai:wikipedia-affinity and updates
+# /etc/hosts so that the hostname 'wikipedia-affinity' points to the
+# right instance.  You can, optionally, pass a different image as a
+# parameter.
+
+use FindBin;
+use lib "$FindBin::Bin/../../perl";
+use RunContainer qw/container_ip update_etc_hosts/;
+use Getopt::Long qw/:config bundling/;
+
+sub usage {
+<<'EOM';
+USAGE
+sudo run [options]
+
+OPTIONS
+--image, -i image-name
+    The docker image that you want to run.  Defaults to
+    macnod/ai:wikipedia-affinity.
+
+--name, -n name
+    The Docker container name you want to give to the container that
+    this program creates.  Defaults to 'wikipedia-affinity'.  Your
+    /etc/hosts file will also be updated so that the name you provide
+    here points to the IP address of this container.
+
+--help, -h
+    Display this help text.
+EOM
+}
+
+my $o= +{};
+GetOptions($o, 'image|i=s', 'name|n=s', 'help|h');
+die usage() if $o->{help};
+$o->{image}||= 'macnod/ai:wikipedia-affinity';
+my $name= do {
+    $o->{image} =~ m|macnod/ai:(.+)|;
+    $o->{name} ? $o->{name} : $1 ? $1 : die "No name.\n"};
+
+die "This script must be run as root.\n" if $>;
+die "Container '$name' already exists.\n" if `docker ps -a | grep $name`;
+
+# Start instance
+my @run_options= (
+    "--add-host=$name:127.0.1.1",
+    "--name=$name",
+    "-h $name",
+    "-dt $o->{image}",
+    "/start.sh",
+);
+my $run_options= join(' ', @run_options);
+`docker run $run_options`;
+my $ip= update_etc_hosts($name);
+
+# All done
+print "Container '$name' is running with IP address $ip.\n";
